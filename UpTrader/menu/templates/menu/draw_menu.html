@@ -1,0 +1,15 @@
+
+{% for item in menu_items %}
+    <li>
+        {% if item.has_children %}
+
+        <a href="{% url 'menu:index' %}?item={{item.id}}">{{ item.name }}</a>
+        {% else %} {{ item.name }}
+        {% endif %}
+        {% if item.children %}
+            <ul>
+                {% include "menu/draw_menu.html" with menu_items=item.children %}
+            </ul>
+        {% endif %}
+    </li>
+{% endfor %}

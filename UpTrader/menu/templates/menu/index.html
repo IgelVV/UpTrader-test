@@ -4,15 +4,14 @@
     <meta charset="UTF-8">
     <title>Menu</title>
 </head>
+{% load display_menu %}
 <body>
     <div>
-        <h1>Up Trader test task</h1>
+        <h1>UpTrader test</h1>
         <div>
-            <p>Menu1</p>
+            <p>{% draw_menu 'Main menu'%}</p>
             <br>
             <br>
-            <p>Menu2</p>
-            {{ menu }}
         </div>
     </div>
 </body>
