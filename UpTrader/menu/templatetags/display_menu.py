@@ -1,10 +1,15 @@
 from django import template
+from django.db.models import Subquery, OuterRef, Count, Q, F
+
 from menu import models
 
 register = template.Library()
 
 
 class TreeMenuItem:
+    """В отличие от MenuItem можно определить список `children`,
+    для удобства отрисовки. Именно эти объекты передаются в templates."""
+
     def __init__(
             self,
             pk: int,
@@ -22,12 +27,19 @@ class TreeMenuItem:
 
 
 def get_tree_menu_items(items: list):
+    """
+    Преобразует MenuItem в TreeMenuItem.
+    Возвращает список TreeMenuItem, у которых нет родителя.
+
+    :param items:
+    :return:
+    """
     storage = {item.pk: TreeMenuItem(
             item.pk,
             item.name,
             item.menu_id,
             item.parent_id,
-            item.has_children if hasattr(item, 'has_children') else True,
+            item.has_children,
         ) for item in items}
     result: list[TreeMenuItem] = []
     for item in items:
@@ -42,11 +54,40 @@ def get_tree_menu_items(items: list):
 
 @register.inclusion_tag('menu/draw_menu.html', takes_context=True)
 def draw_menu(context, name):
+    """
+    Происходит поиск всех элементов древовидного меню,
+    которые выше искомого (item), и всех, которые на один уровень ниже.
+    Так же происходит фильтрация по связанной таблице `menu_menu`,
+    чтобы по имени меню (menu), выделить только связанные с ним элементы.
+    Так же дополнительно добавляется поле `has_children`, которое
+    помогает в отрисовке меню.
+    Во второй части рекурсивного запроса, мы используем `JOIN` дважды,
+    чтобы найти родителя, и чтобы найти элементы на том же уровне
+    вложенности что и родитель
+    (находя записи у которых родитель тот же что и у родителя).
+
+    Такой подход не позволяет получать корневые элементы, т.к.
+    они без родителя. И потому без выбранного пункта меню `selected_item`
+    происходит запрос через ORM и находятся все корневые элементы меню,
+    так же добавляется вспомогательное поле `has_children`
+
+    :param context:
+    :param name:
+    :return:
+    """
     selected_item = context['selected_item']
     if selected_item is None:
+        has_children_query = (
+            models.MenuItem.objects.filter(parent_id=OuterRef("pk"))
+            .values("id")
+        )
+
         menu_items = list(
             models.MenuItem.objects.filter(menu__name=name)
             .filter(parent=None)
+            .annotate(has_children=Count(
+                "id", filter=Subquery(has_children_query))
+            )
         )
     else:
         menu_items = list(models.MenuItem.objects.raw(
